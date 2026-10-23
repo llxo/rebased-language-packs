@@ -1,57 +1,75 @@
-# Rebased 中文语言包 (Rebased Chinese Language Pack)
+# Rebased 语言包 (Rebased Language Packs)
 
-专为 **[Rebased](https://github.com/DetachHead/rebased)**（基于 IntelliJ Platform 的纯粹 Git 客户端）定制的简体中文汉化包。
+专为 **[Rebased](https://github.com/DetachHead/rebased)**（基于 IntelliJ Platform 的纯粹 Git 客户端）定制的官方多语言本地化语言包集合。
+
+---
+
+## 🌐 支持的语言包
+
+本项目适配了 JetBrains 官方维护的 3 款原生语言包：
+
+| 语言代码 | 语言名称 | 基础来源 | 产物文件名 |
+| :--- | :--- | :--- | :--- |
+| **`zh-CN`** | 简体中文 | JetBrains 官方中文语言包 | `rebased-zh-CN-pack-*.zip` |
+| **`ja`** | 日本語 | JetBrains 官方日本語言語パック | `rebased-ja-pack-*.zip` |
+| **`ko`** | 한국어 | JetBrains 官方한국어 언어 팩 | `rebased-ko-pack-*.zip` |
+
+### ✨ 解决的核心问题
+- **双向放宽版本号限制**：解除 `until-build` 与 `since-build` 限制，彻底解决直接安装时报错“版本不兼容 / Incompatible”的问题；
+- **修复报错**：修复了官方语言包旧版本在新版 IDE 中因缺失 HTML 标签导致的 `IndexOutOfBoundsException` 报错；
+- **Rebased 专属界面本地化**：补充 Rebased 独有设置项与文案调整。
+
+> 由于 JetBrains 官方未开放新版语言包的外部下载，自动化构建会选用 242 稳定版本，已足以覆盖绝大多数界面。
 
 ---
 
 ## ⚡ 安装与使用
 
-1. **下载插件**：前往 **[Releases 页面](../../releases)** 下载最新的 `rebased-chinese-pack-xxx.zip`；
+1. **下载插件**：前往 **[Releases 页面](../../releases)** 下载对应语言的 `rebased-*-pack-*.zip`；
 2. **安装并启用**：
-   - 打开 Rebased（欢迎首页左侧直接点击 **`Plugins`**）；
-   - 点击顶部 ⚙️ **齿轮图标** -> 选择 **Install Plugin from Disk(从磁盘安装插件)**；
-   - 浏览并选中下载的 `.zip` 进行安装；
-   - 点击 **`Customize`**，将 **`Language`** 切换为 **`Chinese`**。
-   - 点击 **Restart(重启)**
-
->  若已经打开了项目，也可随时在设置面板中进行同样的操作。
+   - 打开 Rebased（欢迎首页左侧直接点击 **`Plugins`**，或者在设置中打开 `Plugins`）；
+   - 点击右上角 ⚙️ **齿轮图标** -> 选择 **Install Plugin from Disk (从磁盘安装插件)**；
+   - 选中下载的 `.zip` 文件安装；
+   - 在左侧菜单点击 **`Customize`**，将 **`Language`** 切换为对应语言；
+   - 点击 **Restart (重启)** 即可生效。
 
 ---
 
-## 🛠️ 自行构建与定制（面向开发者）
+## 🛠️ 自行构建（面向开发者）
 
-如果你想自己打包或补充自定义翻译：
-
-### 1. 本地一键打包
-无需安装任何额外依赖（仅需 Python 3.8+）：
+### 1. 一键构建全部官方语言包
+纯 Python 标准库实现，**零第三方依赖**。脚本自动从 JetBrains Marketplace 获取最新版本并批量输出至 `dist/`：
 ```bash
-python build_rebased_chinese_pack.py
+python build.py
 ```
-> 脚本会自动从 JetBrains 官方下载最新语言包、放宽版本限制、合并本地翻译并打包到 `dist/` 目录。
+> 一键生成 `zh-CN`, `ja`, `ko` 全部 3 个语言包及对应的 `.sha256` 校验和。
 
-### 2. 常用命令速查
+### 2. 常用构建参数
 ```bash
-# 查看官方所有可用历史版本
-python build_rebased_chinese_pack.py --list-versions
+# 自由指定语言（支持逗号分隔）
+python build.py -l zh-CN,ja
+python build.py -l ko
 
-# 指定下载特定版本（如 242.152）
-python build_rebased_chinese_pack.py -v 242.152
+# 指定官方语言包版本号（如 242.152）
+python build.py -v 242.152
 
-# 使用本地已有的语言包（支持 .zip / .jar 或 localization-zh 目录）
-python build_rebased_chinese_pack.py -i ./path/to/localization-zh
+# 处理任意本地第三方/社区语言包
+python build.py -i ./path/to/community-pack.zip
 ```
 
-### 3. 补充自定义文案
-直接在 `overrides/` 目录下按相同路径修改或新建 `.properties` 文件即可，例如：
-- `overrides/messages/IdeBundle.properties`：通用设置与弹窗文案
-- `overrides/messages/ActionsBundle.properties`：菜单与动作按钮文案
-- `overrides/messages/IndexingBundle.properties`：索引与项目分析文案
-
-脚本打包时会**智能增量合并**，自动保留官方原有翻译，仅替换或追加你修改的内容。
+### 3. 项目结构
+```text
+rebased-language-packs/
+  ├── build.py                 # 构建入口（语言配置、CLI 解析与任务调度）
+  ├── core.py                  # 核心引擎（网络下载、XML放宽与重新打包）
+  └── overrides/               # 自定义文案覆盖目录
+      └── zh-CN/               # 简体中文补丁
+          └── messages/
+```
 
 ---
 
 ## 📄 开源协议
 
 本项目采用 [MIT License](LICENSE) 许可协议。  
-IntelliJ 官方中文语言包版权归 JetBrains s.r.o. 所有。
+JetBrains 官方语言包版权归 JetBrains s.r.o. 所有。

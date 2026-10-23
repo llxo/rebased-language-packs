@@ -1,4 +1,4 @@
-name: Build and Release Rebased Chinese Pack
+name: Build and Release Rebased Language Packs
 
 on:
   push:
@@ -11,6 +11,10 @@ on:
       - main
   workflow_dispatch:
     inputs:
+      languages:
+        description: '指定构建的语言（如 all、zh-CN,ja,ko 等）'
+        required: false
+        default: 'all'
       version:
         description: '指定下载的官方语言包版本号（留空则自动选用最新版本）'
         required: false
@@ -25,7 +29,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Chinese Pack
+    name: Build Language Packs
     runs-on: ubuntu-latest
 
     steps:
@@ -42,34 +46,33 @@ jobs:
         run: |
           mkdir -p dist
           ARGS=""
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            ARGS="-v ${{ github.event.inputs.version }}"
+          LANGS="${{ github.event.inputs.languages }}"
+          if [ -n "$LANGS" ]; then
+            ARGS="$ARGS --langs $LANGS"
           fi
-          python build_rebased_chinese_pack.py $ARGS
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            ARGS="$ARGS -v ${{ github.event.inputs.version }}"
+          fi
 
-          # 定位生成的 zip 文件
-          ZIP_FILE=$(find dist -maxdepth 1 -name "rebased-chinese-pack-*.zip" | head -n 1)
-          if [ -z "$ZIP_FILE" ]; then
-            echo "::error::未找到构建生成的插件 ZIP 文件！"
+          python build.py $ARGS
+
+          # 验证 dist/ 目录下产物
+          COUNT=$(find dist -maxdepth 1 -name "rebased-*-pack-*.zip" | wc -l)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::未在 dist/ 中找到任何生成的插件 ZIP 文件！"
             exit 1
           fi
 
-          ZIP_NAME=$(basename "$ZIP_FILE")
-          echo "zip_file=$ZIP_FILE" >> $GITHUB_OUTPUT
-          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
-
-          # 计算 SHA256
-          sha256sum "$ZIP_FILE" > "$ZIP_FILE.sha256"
-          echo "产物构建成功: $ZIP_NAME"
-          cat "$ZIP_FILE.sha256"
+          echo "共成功构建 $COUNT 个语言包插件！"
+          ls -lh dist/
 
       - name: Upload Build Artifacts (CI Run)
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.build.outputs.zip_name }}
+          name: rebased-language-packs
           path: |
-            ${{ steps.build.outputs.zip_file }}
-            ${{ steps.build.outputs.zip_file }}.sha256
+            dist/*.zip
+            dist/*.sha256
           retention-days: 14
 
       - name: Create GitHub Release
@@ -77,25 +80,25 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ steps.build.outputs.zip_file }}
-            ${{ steps.build.outputs.zip_file }}.sha256
+            dist/*.zip
+            dist/*.sha256
           generate_release_notes: true
           draft: false
           prerelease: false
           name: ${{ github.ref_name }}
           body: |
             ### 适用客户端
-            专为 **[Rebased](https://github.com/DetachHead/rebased)** 定制的官方简体中文语言包补丁。
+            专为 **[Rebased](https://github.com/DetachHead/rebased)**（基于 IntelliJ 平台的纯粹 Git 客户端）定制的官方语言包补丁。
 
-            ### 包含特性
-            - **放宽版本兼容限制**：解除构建号拦截（兼容 `until-build="999.*"`）；
-            - **修复项目信任弹窗崩溃**：修复 `TooltipMouseAdapter` 导致的 `IndexOutOfBoundsException`；
-            - **Rebased 专属界面中文化**：全面对齐并翻译 Rebased 独有设置项与去“IDE”化术语。
+            ### 语言包列表
+            - **简体中文 (zh-CN)**: `rebased-zh-CN-pack-*.zip`
+            - **日本語 (ja)**: `rebased-ja-pack-*.zip`
+            - **한국어 (ko)**: `rebased-ko-pack-*.zip`
 
             ### 安装指南
-            1. 下载下方的 `${{ steps.build.outputs.zip_name }}`；
+            1. 下载下方 Assets 中的对应语言 `.zip` 插件包；
             2. 打开 **Rebased**；
-            3. 进入 `Settings` -> `Plugins`（插件）；
+            3. 欢迎首页直接点击 **Plugins**（或在设置中打开 `Plugins`）；
             4. 点击齿轮图标 ⚙️ -> **Install Plugin from Disk...**（从磁盘安装插件）；
             5. 选择下载的 zip 文件并确定；
-            6. 重启 Rebased 即可生效！
+            6. 点击 **Customize** -> **Language** 切换为对应语言，重启即可生效。
