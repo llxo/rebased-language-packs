@@ -1,0 +1,101 @@
+name: Build and Release Rebased Chinese Pack
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '指定下载的官方语言包版本号（留空则自动选用最新版本）'
+        required: false
+        default: ''
+      create_release:
+        description: '是否发布为 GitHub Release（仅在手动触发时有效）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Chinese Pack
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Build Script
+        id: build
+        run: |
+          mkdir -p dist
+          ARGS=""
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            ARGS="-v ${{ github.event.inputs.version }}"
+          fi
+          python build_rebased_chinese_pack.py $ARGS
+
+          # 定位生成的 zip 文件
+          ZIP_FILE=$(find dist -maxdepth 1 -name "rebased-chinese-pack-*.zip" | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "::error::未找到构建生成的插件 ZIP 文件！"
+            exit 1
+          fi
+
+          ZIP_NAME=$(basename "$ZIP_FILE")
+          echo "zip_file=$ZIP_FILE" >> $GITHUB_OUTPUT
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+
+          # 计算 SHA256
+          sha256sum "$ZIP_FILE" > "$ZIP_FILE.sha256"
+          echo "产物构建成功: $ZIP_NAME"
+          cat "$ZIP_FILE.sha256"
+
+      - name: Upload Build Artifacts (CI Run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build.outputs.zip_name }}
+          path: |
+            ${{ steps.build.outputs.zip_file }}
+            ${{ steps.build.outputs.zip_file }}.sha256
+          retention-days: 14
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.build.outputs.zip_file }}
+            ${{ steps.build.outputs.zip_file }}.sha256
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          name: ${{ github.ref_name }}
+          body: |
+            ### 适用客户端
+            专为 **[Rebased](https://github.com/DetachHead/rebased)** 定制的官方简体中文语言包补丁。
+
+            ### 包含特性
+            - **放宽版本兼容限制**：解除构建号拦截（兼容 `until-build="999.*"`）；
+            - **修复项目信任弹窗崩溃**：修复 `TooltipMouseAdapter` 导致的 `IndexOutOfBoundsException`；
+            - **Rebased 专属界面中文化**：全面对齐并翻译 Rebased 独有设置项与去“IDE”化术语。
+
+            ### 安装指南
+            1. 下载下方的 `${{ steps.build.outputs.zip_name }}`；
+            2. 打开 **Rebased**；
+            3. 进入 `Settings` -> `Plugins`（插件）；
+            4. 点击齿轮图标 ⚙️ -> **Install Plugin from Disk...**（从磁盘安装插件）；
+            5. 选择下载的 zip 文件并确定；
+            6. 重启 Rebased 即可生效！

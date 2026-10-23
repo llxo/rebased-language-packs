@@ -19,11 +19,20 @@ Rebased 是基于 IntelliJ 源码构建的独立 Git 客户端。由于其特殊
 
 ## 🚀 快速上手
 
-### 环境要求
+### 方式一：直接下载现成插件包（推荐普通用户）
+
+前往本项目仓库的 **[Releases 页面](../../releases)**：
+1. 下载最新的 `rebased-chinese-pack-xxx.zip`；
+2. 按照下方[安装指南](#-在-rebased-中安装插件)直接安装，无需安装 Python。
+
+---
+
+### 方式二：本地脚本一键构建（适合开发者）
+
+#### 环境要求
 - Python 3.8+（仅使用 Python 标准库，**无需安装任何额外 pip 依赖**）
 
-### 一键构建
-
+#### 一键构建
 在项目根目录下直接运行：
 
 ```bash
@@ -114,3 +123,20 @@ overrides/
 5. 浏览并选中 `dist/rebased-chinese-pack-xxx.zip`；
 6. 点击确定并按照提示 **Restart Rebased**（重启客户端）；
 7. 重启后即可畅享完全适配的简体中文界面！
+
+---
+
+## 🤖 自动化 CI/CD 与发版
+
+本项目已配置完整的 **GitHub Actions 自动化流水线**：
+- **Tag 触发自动发版**：每当向仓库推送形如 `v*` 的 Git Tag（如 `v1.0.0`），GitHub Actions 将自动完成插件构建、生成 SHA256 校验和并创建 GitHub Release；
+- **手动触发与版本定制**：支持在 GitHub Actions 页面使用 `workflow_dispatch` 手动触发并指定官方语言包版本；
+- **PR 质量检查**：社区提交 PR 时会自动运行构建检查，确保文案格式与脚本正常。
+
+---
+
+## 📄 开源协议
+
+本项目采用 [MIT License](LICENSE) 许可协议。
+官方中文语言包版权归 JetBrains s.r.o. 所有。
+
