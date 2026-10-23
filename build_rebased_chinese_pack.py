@@ -31,6 +31,7 @@ from typing import Dict, List, Optional, Tuple
 # 官方中文语言包在 JetBrains Marketplace 上的插件信息
 JETBRAINS_MARKETPLACE_PLUGIN_ID = 13710
 JETBRAINS_MARKETPLACE_XML_ID = "com.intellij.zh"
+DEFAULT_SINCE_BUILD = "200.0"
 DEFAULT_UNTIL_BUILD = "999.*"
 DEFAULT_PLUGIN_NAME = "Rebased Chinese Language Pack"
 DEFAULT_OUTPUT_DIR = "dist"
@@ -182,15 +183,27 @@ def resolve_plugin_package(
 ) -> Tuple[Path, str]:
     """
     解析并获取官方插件包文件（返回文件路径和检测到的版本号）
-    - 如果提供了 input_file，直接验证并使用；
-    - 否则从 Marketplace 下载（根据 specified_version 或自动选最新）。
+    - 如果提供了 input_file（支持 .zip、.jar 或解压目录），直接使用；
+    - 否则从 Marketplace 自动下载（根据 specified_version 或自动选推荐版本）。
     """
     if input_file:
-        file_path = Path(input_file).resolve()
-        if not file_path.is_file():
-            raise FileNotFoundError(f"指定的本地输入文件不存在: {file_path}")
-        # 从文件名尝试提取版本号，如 zh.242.152.zip
-        match = re.search(r"(\d+\.\d+)", file_path.name)
+        raw_p = Path(input_file).resolve()
+        if raw_p.is_dir():
+            jar_candidate = raw_p / "lib" / "localization-zh.jar"
+            if jar_candidate.is_file():
+                file_path = jar_candidate
+            else:
+                jars = list(raw_p.rglob("*.jar"))
+                if jars:
+                    file_path = jars[0]
+                else:
+                    raise FileNotFoundError(f"在指定目录中未找到任何 jar 文件: {raw_p}")
+        elif raw_p.is_file():
+            file_path = raw_p
+        else:
+            raise FileNotFoundError(f"指定的本地输入路径不存在: {raw_p}")
+
+        match = re.search(r"(\d+\.\d+[\.\d+]*)", file_path.name)
         ver = match.group(1) if match else "custom"
         print(f"[+] 使用本地插件包: {file_path} (识别版本: {ver})")
         return file_path, ver
@@ -369,28 +382,33 @@ def modify_plugin_xml(
     xml_content: str,
     new_name: str = DEFAULT_PLUGIN_NAME,
     until_build: str = DEFAULT_UNTIL_BUILD,
-    since_build: Optional[str] = None,
+    since_build: str = DEFAULT_SINCE_BUILD,
     version_suffix: str = "-rebased",
-) -> str:
+) -> Tuple[str, str]:
     """
     精确修改 META-INF/plugin.xml：
-    1. 放宽 <idea-version until-build="..."> 限制；
-    2. 修改插件显示名称 <name>；
+    1. 双向放宽版本号限制（since-build="200.0", until-build="999.*"），彻底防止 SNAPSHOT/EAP 拦截；
+    2. 修改插件显示名称 <name> 为 "Rebased Chinese Language Pack"；
     3. 调整 <version> 标注（加上 -rebased 标识）；
     4. 在 <description> 中追加 Rebased 适配说明。
+    返回: (修改后的 xml 内容, 提取到的原始版本号)
     """
     content = xml_content
 
-    # 1. 修改/增加 <idea-version>
+    # 提取原始版本号
+    ver_match = re.search(r"<version>([^<]+)</version>", content)
+    raw_version = ver_match.group(1).replace("-rebased", "").strip() if ver_match else "unknown"
+
+    # 1. 修改/增加 <idea-version>（双向放宽）
     if re.search(r"<idea-version\b[^>]*>", content):
         def _replace_idea_version(match: re.Match) -> str:
             tag = match.group(0)
-            # 修改 until-build
+            # 放宽 until-build
             if re.search(r'until-build="[^"]*"', tag):
                 tag = re.sub(r'until-build="[^"]*"', f'until-build="{until_build}"', tag)
             else:
                 tag = tag.rstrip("/>").rstrip(">") + f' until-build="{until_build}"/>'
-            # 如果指定了 since_build
+            # 放宽 since-build（避免由于官方包锁死精确小版本，导致大于 SNAPSHOT 构件号报错）
             if since_build:
                 if re.search(r'since-build="[^"]*"', tag):
                     tag = re.sub(r'since-build="[^"]*"', f'since-build="{since_build}"', tag)
@@ -401,7 +419,7 @@ def modify_plugin_xml(
         content = re.sub(r"<idea-version\b[^>]*\/?>", _replace_idea_version, content, count=1)
     else:
         # 在 <idea-plugin> 下插入 <idea-version>
-        ver_tag = f'  <idea-version since-build="{since_build or "200.0"}" until-build="{until_build}"/>\n'
+        ver_tag = f'  <idea-version since-build="{since_build}" until-build="{until_build}"/>\n'
         content = re.sub(r"(<idea-plugin[^>]*>\n?)", r"\1" + ver_tag, content, count=1)
 
     # 2. 修改 <name>
@@ -422,15 +440,15 @@ def modify_plugin_xml(
 
     # 4. 在 description 中增加 Rebased 汉化说明
     rebased_note = (
-        "<p><b>[Rebased 专用汉化补丁]</b> 放宽了 IDEA 构建号兼容限制（支持 until-build="
-        f"{until_build}），并已自动合并针对 Rebased Git 客户端专属界面的中文翻译。</p><br>"
+        "<p><b>[Rebased 专用汉化补丁]</b> 放宽了构建号兼容范围（支持 "
+        f"{since_build} ~ {until_build}），已自动合并针对 Rebased Git 客户端专属界面的中文翻译。</p><br>"
     )
     if "<description><![CDATA[" in content:
         content = content.replace("<description><![CDATA[", "<description><![CDATA[" + rebased_note, 1)
     elif "<description>" in content:
         content = content.replace("<description>", "<description>" + rebased_note, 1)
 
-    return content
+    return content, raw_version
 
 
 # ----------------------------------------------------------------------
@@ -499,15 +517,21 @@ def process_and_repack(
 
         print("[*] 正在修改 META-INF/plugin.xml ...")
         xml_text = plugin_xml_path.read_text(encoding="utf-8")
-        modified_xml = modify_plugin_xml(
+        modified_xml, raw_xml_ver = modify_plugin_xml(
             xml_text,
             new_name=plugin_name,
             until_build=until_build,
-            since_build=since_build,
+            since_build=since_build or DEFAULT_SINCE_BUILD,
         )
         plugin_xml_path.write_text(modified_xml, encoding="utf-8")
         print(f"    -> 插件名称已设为: '{plugin_name}'")
-        print(f"    -> until-build 已放宽为: '{until_build}'")
+        print(f"    -> 兼容范围已放宽为: '{since_build or DEFAULT_SINCE_BUILD}' ~ '{until_build}'")
+        print(f"    -> 核心版本识别为: '{raw_xml_ver}'")
+
+        # 若原输出文件名包含 'custom'，自动更新为从 XML 读出的真实版本号
+        if "custom" in output_zip.name and raw_xml_ver != "unknown":
+            new_zip_name = output_zip.name.replace("custom", raw_xml_ver)
+            output_zip = output_zip.parent / new_zip_name
 
         # 第四阶段：合并 overrides 目录下的自定义翻译
         merged_count = 0
@@ -643,7 +667,7 @@ def main():
     parser.add_argument(
         "-i", "--input-file",
         dest="input_file",
-        help="使用本地已有的语言包文件 (.zip 或 .jar)，跳过网络下载",
+        help="使用本地已有的语言包文件（支持 .zip、.jar 或 localization-zh 目录）",
     )
     parser.add_argument(
         "-o", "--output",
@@ -671,7 +695,8 @@ def main():
     parser.add_argument(
         "--since-build",
         dest="since_build",
-        help="修改兼容性的 since-build 起始构建号（可选，如 200.0）",
+        default=DEFAULT_SINCE_BUILD,
+        help=f"放宽兼容性的 since-build 起始构建号（默认: '{DEFAULT_SINCE_BUILD}'，彻底防止 SNAPSHOT/EAP 拦截）",
     )
     parser.add_argument(
         "--keep-temp",

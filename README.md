@@ -37,8 +37,8 @@ python build_rebased_chinese_pack.py --list-versions
 # 指定下载特定版本（如 242.152）
 python build_rebased_chinese_pack.py -v 242.152
 
-# 使用本地已有的 zip 安装包进行二次打包
-python build_rebased_chinese_pack.py -i ./zh.242.152.zip
+# 使用本地已有的语言包（支持 .zip / .jar 或 localization-zh 目录）
+python build_rebased_chinese_pack.py -i ./path/to/localization-zh
 ```
 
 ### 3. 补充自定义文案
