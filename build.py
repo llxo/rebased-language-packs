@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from core import build_custom_pack, build_single_pack, calc_sha256
+from core import build_custom_pack, build_single_pack
 
 # ----------------------------------------------------------------------
 # 1. Official Language Configurations
@@ -121,8 +121,6 @@ Examples:
             overrides_dir=ov_p,
             keep_temp=args.keep_temp,
         )
-        sha = calc_sha256(out_file)
-        Path(f"{out_file}.sha256").write_text(f"{sha}  {out_file.name}\n", encoding="utf-8")
         size_mb = out_file.stat().st_size / 1048576
         print(f"\n[√] Build succeeded: {out_file.name} ({size_mb:.2f} MB)")
         print(f"    Artifact: {out_file.resolve()}")
@@ -172,8 +170,6 @@ Examples:
                 no_proxy=args.no_proxy,
                 keep_temp=args.keep_temp,
             )
-            sha = calc_sha256(out_file)
-            Path(f"{out_file}.sha256").write_text(f"{sha}  {out_file.name}\n", encoding="utf-8")
             size_mb = out_file.stat().st_size / 1048576
             print(f"[√] Success: {out_file.name} ({size_mb:.2f} MB)\n")
             results.append({"lang": lang, "name": cfg["name"], "file": out_file.name, "size": size_mb})
@@ -190,7 +186,7 @@ Examples:
         print("-" * 65)
         for r in results:
             print(f"{r['lang']:<10} | {r['name']:<20} | {r['size']:.2f} MB   | {r['file']}")
-        print(f"\nArtifacts and .sha256 checksums are saved in: {out_dir.resolve()}")
+        print(f"\nArtifacts are saved in: {out_dir.resolve()}")
 
     if failed:
         print(f"\n[!] Warning: Failed languages: {', '.join(failed)}", file=sys.stderr)

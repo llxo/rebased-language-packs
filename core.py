@@ -8,7 +8,6 @@ plugin.xml patching, package unpacking, and repackaging.
 Pure standard library implementation with zero external dependencies.
 """
 
-import hashlib
 import json
 import os
 import re
@@ -580,11 +579,3 @@ def build_custom_pack(
         if not keep_temp:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-
-def calc_sha256(file_path: Path) -> str:
-    """Calculate SHA256 checksum for a file."""
-    sha = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(64 * 1024), b""):
-            sha.update(chunk)
-    return sha.hexdigest()
